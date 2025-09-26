@@ -37,13 +37,13 @@ sys.path.append(str(Path(__file__).parent.parent))
 from call_ai_translate_vtt_to_md import parse_vtt_file
 
 # LinkAI API 配置
-API_KEY = "Link_vMAvrW4rezbFYKimorUYy7rJeFOjh3mDNBQu8QrFRm"
+API_KEY = "Link_L9iZBNzrJ73W2hx6vCQOZjfMqeMBkQYj0eqXzSgdG0"
 BASE_URL = "https://api.link-ai.tech/v1"
 CHAT_URL = f"{BASE_URL}/chat/completions"
 
 # 文件路径配置
-VTT_FOLDER = r'D:\xwang\git_work_wx\whoRu\output_result'
-MD_FOLDER = r'D:\xwang\git_work_wx\whoRu\output_result_md_linkai'
+VTT_FOLDER = r'../output_result'
+MD_FOLDER = r'../output_result_md_linkai'
 
 # 处理配置
 BATCH_SIZE = 5  # 每批处理的文件数量
@@ -64,10 +64,10 @@ retry_stats = {
 }
 
 # 系统提示词
-SYSTEM_PROMPT = """你是一位专业的内容编辑和翻译专家。请将用户提供的繁体中文视频字幕转换为流畅、自然的简体中文文章。
+SYSTEM_PROMPT = """你是一位专业的内容编辑和翻译专家。请将用户提供的字幕转换为流畅、自然的简体中文文章。
 
 请严格遵守以下要求：
-1. **完整转换**：将所有繁体中文转换为简体中文，不遗漏任何内容
+1. **完整转换**：将所有内容进行转换，不遗漏任何内容，保留源文档所有内容信息
 2. **智能分段**：将口语化的短句合并成自然的段落，改善可读性
 3. **保持原意**：保持原始内容的完整性和准确性，不添加或删除信息
 4. **格式优化**：
@@ -91,7 +91,8 @@ def call_linkai_api(messages, retry_count=0):
     body = {
         "messages": messages,
         "stream": False,
-        "temperature": 0.3
+        "temperature": 0.3,
+        "model": "Gemini-2.0-flash"
     }
     
     for attempt in range(MAX_RETRIES):

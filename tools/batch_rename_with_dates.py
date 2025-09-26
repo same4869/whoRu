@@ -11,8 +11,8 @@ import re
 import shutil
 from datetime import datetime
 
-VTT_FOLDER = r'D:\xwang\git_work_wx\whoRu\output_result'
-BACKUP_FOLDER = r'D:\xwang\git_work_wx\whoRu\output_result_backup'
+VTT_FOLDER = r'../output_result'
+BACKUP_FOLDER = r'../output_result_backup'
 
 def extract_date_from_vtt_content(file_path):
     """从VTT文件内容中提取日期"""
