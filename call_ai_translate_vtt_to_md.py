@@ -5,11 +5,12 @@ import webvtt
 import tiktoken
 import time
 import re
+import tempfile
 
 # --- 1. 配置区 ---
 
-VTT_FOLDER_PATH = r'C:\Users\wwd_m\Downloads\test-vtt'
-OUTPUT_FOLDER_PATH = r'C:\Users\wwd_m\Downloads\output-vtt-md'
+VTT_FOLDER_PATH = r'D:\xwang\git_work_wx\whoRu\output_result'
+OUTPUT_FOLDER_PATH = r'D:\xwang\git_work_wx\whoRu\output_result_md'
 API_URL = 'http://127.0.0.1:1234/v1/chat/completions'
 
 # 【优化点1】: 尝试一个更大的分片值，您可以根据测试结果调整这个数字
@@ -18,11 +19,11 @@ MAX_TOKENS_PER_CHUNK = 2500  # 建议从 2500 开始测试
 # 【优化点2】: 使用能合并段落的新版Prompt
 SYSTEM_PROMPT = """
 你是一位顶级的翻译家和内容编辑。
-你的任务是：将用户提供的英文视频口播稿，完整地翻译成一篇流畅、自然、连贯的简体中文文章。
+你的任务是：将用户提供的英文或中文的视频口播稿，完整地翻译成一篇流畅、自然、连贯的简体中文文章。
 
 请严格遵守以下核心原则：
 1. **全文翻译与合并**：
-   - 必须逐句翻译所有内容，不能省略或总结。
+   - 必须逐句翻译或解析所有内容，不能省略或总结。
    - **关键指令**：请智能地将原文中语义连贯的多行短句，合并成符合中文阅读习惯的自然段落。不要原文每行都换行。
 
 2. **保持逻辑**：在合并段落时，要尊重原文的逻辑停顿。如果原文有明显的空行或意群转换，可以在译文中也进行分段。
@@ -43,12 +44,63 @@ def get_tokenizer():
 
 def parse_vtt_file(file_path):
     try:
-        captions = webvtt.read(file_path)
-        full_text = "\n".join([caption.text.strip() for caption in captions])
-        return full_text
+        # 先读取文件内容，检查是否有时间戳信息
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # 提取时间戳信息
+        timestamp_info = extract_timestamp_info(content)
+        
+        # 如果文件开头有时间戳信息，需要找到实际的VTT内容开始位置
+        if content.startswith('# 视频发布时间:'):
+            # 找到"WEBVTT"的位置
+            webvtt_start = content.find('WEBVTT')
+            if webvtt_start == -1:
+                print(f"在文件 {os.path.basename(file_path)} 中找不到WEBVTT标记")
+                return None, None
+            
+            # 提取纯VTT内容
+            vtt_content = content[webvtt_start:]
+            
+            # 创建临时文件来让webvtt库解析
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.vtt', delete=False, encoding='utf-8') as temp_file:
+                temp_file.write(vtt_content)
+                temp_file_path = temp_file.name
+            
+            try:
+                captions = webvtt.read(temp_file_path)
+                full_text = "\n".join([caption.text.strip() for caption in captions])
+                return full_text, timestamp_info
+            finally:
+                # 清理临时文件
+                os.unlink(temp_file_path)
+        else:
+            # 原始格式，直接解析
+            captions = webvtt.read(file_path)
+            full_text = "\n".join([caption.text.strip() for caption in captions])
+            return full_text, None
+            
     except Exception as e:
         print(f"解析VTT文件 {os.path.basename(file_path)} 时出错: {e}")
-        return None
+        return None, None
+
+def extract_timestamp_info(content):
+    """从VTT文件内容中提取时间戳信息"""
+    timestamp_info = {}
+    lines = content.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if line.startswith('# 视频发布时间:'):
+            timestamp_info['publish_date'] = line.replace('# 视频发布时间:', '').strip()
+        elif line.startswith('# 视频标题:'):
+            timestamp_info['title'] = line.replace('# 视频标题:', '').strip()
+        elif line.startswith('WEBVTT'):
+            # 到达VTT内容开始，停止解析时间戳信息
+            break
+    
+    return timestamp_info if timestamp_info else None
 
 def split_text_into_chunks(text, tokenizer):
     if not tokenizer:
@@ -110,9 +162,16 @@ def process_single_file(vtt_file_path, tokenizer):
     filename = os.path.basename(vtt_file_path)
     print(f"\n--- 正在处理文件: {filename} ---")
     
-    english_text = parse_vtt_file(vtt_file_path)
-    if not english_text:
+    result = parse_vtt_file(vtt_file_path)
+    if not result or not result[0]:
         return
+    
+    english_text, timestamp_info = result
+    
+    # 显示时间戳信息（如果有的话）
+    if timestamp_info:
+        print(f"发布时间: {timestamp_info.get('publish_date', '未知')}")
+        print(f"视频标题: {timestamp_info.get('title', '未知')}")
 
     chunks = split_text_into_chunks(english_text, tokenizer)
     
@@ -127,11 +186,28 @@ def process_single_file(vtt_file_path, tokenizer):
         time.sleep(1)
         
     final_text = "\n\n".join(processed_chunks)
+    
+    # 如果有时间戳信息，添加到MD文件开头
+    if timestamp_info:
+        header = f"""---
+title: {timestamp_info.get('title', '未知标题')}
+publish_date: {timestamp_info.get('publish_date', '未知日期')}
+---
+
+# {timestamp_info.get('title', '未知标题')}
+
+**发布时间**: {timestamp_info.get('publish_date', '未知日期')}
+
+---
+
+"""
+        final_text = header + final_text.strip()
+    
     output_filename = f"{os.path.splitext(filename)[0]}.md"
     output_file_path = os.path.join(OUTPUT_FOLDER_PATH, output_filename)
     try:
         with open(output_file_path, 'w', encoding='utf-8') as f:
-            f.write(final_text.strip())
+            f.write(final_text)
         print(f"处理完成！翻译稿已保存至: {output_file_path}\n" + "-"*40)
     except IOError as e:
         print(f"保存文件 {output_filename} 时出错: {e}")

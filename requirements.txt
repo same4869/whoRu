@@ -1,3 +1,0 @@
-requests>=2.25.1
-webvtt-py>=0.4.6
-tiktoken>=0.4.0

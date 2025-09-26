@@ -1,5 +1,8 @@
 import yt_dlp
 import os
+import glob
+import time
+from datetime import datetime
 
 """
 YouTube 频道字幕下载器 - 优化版
@@ -10,6 +13,7 @@ YouTube 频道字幕下载器 - 优化版
 - 支持限制下载视频数量（只下载最新的N个视频）
 - 智能选择字幕语言（优先级：简体中文 > 繁体中文 > 英文）
 - 自动跳过没有合适字幕的视频
+- 在字幕文件开头自动添加视频发布时间和标题信息
 
 使用方法：
 1. 修改下面配置区的参数
@@ -36,7 +40,7 @@ COOKIE_FILE = 'www.youtube.com_cookies.txt'
 URLS_FILE = '1.txt'
 
 # 5. 定义下载视频数量限制 (0表示下载所有视频，大于0则只下载最新的指定数量)
-MAX_VIDEOS = 3  # 修改这个数值来控制下载数量：0=下载所有，5=只下载最新5个
+MAX_VIDEOS = 0  # 修改这个数值来控制下载数量：0=下载所有，5=只下载最新5个
 
 # =============================================================
 
@@ -91,6 +95,58 @@ def find_best_subtitle_language(subtitles, automatic_captions):
     
     return None, None
 
+def format_upload_date(upload_date):
+    """
+    将 yt-dlp 返回的上传日期格式化为可读格式
+    upload_date 格式通常是 'YYYYMMDD'
+    """
+    if not upload_date:
+        return "未知日期"
+    
+    try:
+        # 将字符串转换为日期对象
+        date_obj = datetime.strptime(str(upload_date), '%Y%m%d')
+        # 格式化为中文日期
+        return date_obj.strftime('%Y年%m月%d日')
+    except (ValueError, TypeError):
+        return "未知日期"
+
+def add_timestamp_to_subtitle_file(file_path, upload_date, video_title):
+    """
+    在字幕文件开头添加视频发布时间信息
+    """
+    if not os.path.exists(file_path):
+        return False
+        
+    try:
+        # 读取原始字幕内容
+        with open(file_path, 'r', encoding='utf-8') as f:
+            original_content = f.read()
+        
+        # 创建时间戳信息
+        formatted_date = format_upload_date(upload_date)
+        timestamp_info = f"""# 视频发布时间: {formatted_date}
+# 视频标题: {video_title}
+# 
+# ===============================================
+# 以下为原始字幕内容
+# ===============================================
+
+"""
+        
+        # 将时间戳信息添加到字幕内容开头
+        new_content = timestamp_info + original_content
+        
+        # 写回文件
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(new_content)
+            
+        return True
+        
+    except Exception as e:
+        print(f"添加时间戳信息失败: {e}")
+        return False
+
 def download_subtitles_from_list(urls):
     """
     根据给定的 URL 列表，下载所有视频的字幕。
@@ -126,8 +182,14 @@ def download_subtitles_from_list(urls):
                 )
                 
                 if best_lang:
-                    print(f"发现字幕，开始下载: {info.get('title', '未知标题')}")
+                    video_title = info.get('title', '未知标题')
+                    upload_date = info.get('upload_date')
+                    print(f"发现字幕，开始下载: {video_title}")
                     print(f"选择语言: {best_lang} ({subtitle_type})")
+                    print(f"发布时间: {format_upload_date(upload_date)}")
+                    
+                    # 记录下载前的时间，用于识别新生成的文件
+                    download_start_time = time.time()
                     
                     # 配置专门的下载选项
                     download_opts = base_ydl_opts.copy()
@@ -141,6 +203,25 @@ def download_subtitles_from_list(urls):
                     # 使用新的配置下载
                     with yt_dlp.YoutubeDL(download_opts) as download_ydl:
                         download_ydl.download([url])
+                    
+                    # 等待一小段时间确保文件写入完成
+                    time.sleep(0.5)
+                    
+                    # 查找新生成的字幕文件
+                    all_subtitle_files = glob.glob(os.path.join(OUTPUT_DIR, "*.vtt"))
+                    
+                    # 找到最新创建的字幕文件（在下载时间之后创建的）
+                    new_files = [f for f in all_subtitle_files if os.path.getmtime(f) >= download_start_time - 1]
+                    
+                    if new_files:
+                        # 如果有多个新文件，选择最新的
+                        latest_file = max(new_files, key=os.path.getmtime)
+                        if add_timestamp_to_subtitle_file(latest_file, upload_date, video_title):
+                            print("✓ 已添加发布时间信息到字幕文件")
+                        else:
+                            print("⚠ 添加发布时间信息失败")
+                    else:
+                        print("⚠ 未找到新生成的字幕文件")
                     
                     success_count += 1
                     print("✓ 字幕下载成功")
