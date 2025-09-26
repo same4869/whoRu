@@ -4,10 +4,21 @@
 VTT到Markdown的批量处理器
 支持指定处理数量：0表示全部处理，其他数字表示处理前N个文件
 
+新增功能：
+- 智能重试机制：API超时或连接失败时自动重试
+- 详细错误统计：记录各种错误类型和重试次数
+- 增强的错误处理：区分超时、连接错误等不同问题
+- 更长的超时时间：从60秒增加到120秒
+
 使用方法：
 python batch_vtt_to_md.py 5    # 处理前5个文件
 python batch_vtt_to_md.py 0    # 处理所有文件
 python batch_vtt_to_md.py      # 默认处理所有文件
+
+重试配置：
+- 最大重试次数：3次
+- 重试间隔：5秒
+- API超时时间：120秒
 """
 
 import os
@@ -39,6 +50,19 @@ BATCH_SIZE = 5  # 每批处理的文件数量
 DELAY_BETWEEN_REQUESTS = 1  # 请求间隔（秒）
 BATCH_DELAY = 3  # 批次间隔（秒）
 
+# 重试配置
+MAX_RETRIES = 3  # 最大重试次数
+RETRY_DELAY = 5  # 重试间隔（秒）
+API_TIMEOUT = 120  # API超时时间（秒）
+
+# 全局统计变量
+retry_stats = {
+    'total_retries': 0,
+    'timeout_errors': 0,
+    'connection_errors': 0,
+    'other_errors': 0
+}
+
 # 系统提示词
 SYSTEM_PROMPT = """你是一位专业的内容编辑和翻译专家。请将用户提供的繁体中文视频字幕转换为流畅、自然的简体中文文章。
 
@@ -57,8 +81,8 @@ SYSTEM_PROMPT = """你是一位专业的内容编辑和翻译专家。请将用�
 
 直接输出整理后的文章内容，不要添加任何解释或标记。"""
 
-def call_linkai_api(messages):
-    """调用LinkAI API"""
+def call_linkai_api(messages, retry_count=0):
+    """调用LinkAI API，带重试机制"""
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {API_KEY}"
@@ -70,24 +94,58 @@ def call_linkai_api(messages):
         "temperature": 0.3
     }
     
-    try:
-        response = requests.post(CHAT_URL, json=body, headers=headers, timeout=60)
-        
-        if response.status_code == 200:
-            result = response.json()
-            if 'choices' in result and len(result['choices']) > 0:
-                return result['choices'][0]['message']['content']
-            else:
-                print(f"API响应格式异常: {result}")
-                return None
-        else:
-            print(f"API调用失败: {response.status_code}")
-            print(f"错误信息: {response.text}")
-            return None
+    for attempt in range(MAX_RETRIES):
+        try:
+            if attempt > 0:
+                retry_stats['total_retries'] += 1
+                print(f"    🔄 第 {attempt + 1} 次重试...")
+                time.sleep(RETRY_DELAY)
             
-    except Exception as e:
-        print(f"API调用异常: {e}")
-        return None
+            response = requests.post(CHAT_URL, json=body, headers=headers, timeout=API_TIMEOUT)
+            
+            if response.status_code == 200:
+                result = response.json()
+                if 'choices' in result and len(result['choices']) > 0:
+                    if attempt > 0:
+                        print(f"    ✅ 重试成功！")
+                    return result['choices'][0]['message']['content']
+                else:
+                    print(f"    ❌ API响应格式异常: {result}")
+                    if attempt == MAX_RETRIES - 1:
+                        retry_stats['other_errors'] += 1
+                        return None
+                    continue
+            else:
+                print(f"    ❌ API调用失败: {response.status_code}")
+                print(f"    错误信息: {response.text}")
+                if attempt == MAX_RETRIES - 1:
+                    retry_stats['other_errors'] += 1
+                    return None
+                continue
+                
+        except requests.exceptions.Timeout:
+            retry_stats['timeout_errors'] += 1
+            print(f"    ⏰ API超时 (超过{API_TIMEOUT}秒)")
+            if attempt == MAX_RETRIES - 1:
+                print(f"    ❌ 已重试 {MAX_RETRIES} 次，仍然超时，跳过此文件")
+                return None
+            continue
+        except requests.exceptions.ConnectionError:
+            retry_stats['connection_errors'] += 1
+            print(f"    🌐 网络连接错误")
+            if attempt == MAX_RETRIES - 1:
+                print(f"    ❌ 已重试 {MAX_RETRIES} 次，仍然连接失败，跳过此文件")
+                return None
+            continue
+        except Exception as e:
+            retry_stats['other_errors'] += 1
+            print(f"    ❌ API调用异常: {e}")
+            if attempt == MAX_RETRIES - 1:
+                print(f"    ❌ 已重试 {MAX_RETRIES} 次，仍然失败，跳过此文件")
+                return None
+            continue
+    
+    return None
 
 def process_text_with_ai(text, title, publish_date):
     """使用AI处理文本，转换为高质量的简体中文文章"""
@@ -158,10 +216,11 @@ def process_single_vtt_file(vtt_file_path):
         publish_date = timestamp_info.get('publish_date', '未知日期') if timestamp_info else '未知日期'
         
         # 使用AI处理内容
+        print(f"  🤖 调用AI处理内容...")
         processed_content = process_text_with_ai(text, title, publish_date)
         
         if not processed_content:
-            print(f"  ❌ AI处理失败")
+            print(f"  ❌ AI处理最终失败，跳过此文件")
             return False
         
         # 提取主题
@@ -296,7 +355,18 @@ def main():
     print(f"✅ 成功处理: {success_count} 个文件")
     print(f"❌ 处理失败: {total_files - success_count} 个文件")
     print(f"⏱️ 总用时: {total_time:.1f} 分钟")
-    print(f"📁 输出目录: {MD_FOLDER}")
+    
+    # 显示重试统计
+    if retry_stats['total_retries'] > 0:
+        print(f"\n📊 重试统计:")
+        print(f"  🔄 总重试次数: {retry_stats['total_retries']}")
+        print(f"  ⏰ 超时错误: {retry_stats['timeout_errors']}")
+        print(f"  🌐 连接错误: {retry_stats['connection_errors']}")
+        print(f"  ❓ 其他错误: {retry_stats['other_errors']}")
+    else:
+        print(f"🎉 所有API调用一次成功，无需重试！")
+    
+    print(f"\n📁 输出目录: {MD_FOLDER}")
     print(f"结束时间: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
 if __name__ == "__main__":
