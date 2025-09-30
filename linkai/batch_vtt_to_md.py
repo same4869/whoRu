@@ -7,9 +7,10 @@ VTT到Markdown的通用批量处理器
 功能特点：
 - 通用主题识别：支持科技、教育、生活、商业、投资理财、职场、文化、健康医疗、新闻时事等9大分类
 - 智能内容分析：根据内容特征自动分类（教程指南、经验分享、评测推荐等）
-- 智能重试机制：API超时或连接失败时自动重试
+- 智能API密钥管理：自动从api_keys.txt读取密钥，积分不足时自动切换
+- 智能重试机制：API超时或连接失败时自动重试，406错误自动切换密钥
 - 详细错误统计：记录各种错误类型和重试次数
-- 增强的错误处理：区分超时、连接错误等不同问题
+- 增强的错误处理：区分超时、连接错误、积分不足等不同问题
 
 使用方法：
 python batch_vtt_to_md.py 5    # 处理前5个文件
@@ -39,9 +40,13 @@ sys.path.append(str(Path(__file__).parent.parent))
 from call_ai_translate_vtt_to_md import parse_vtt_file
 
 # LinkAI API 配置
-API_KEY = "Link_L9iZBNzrJ73W2hx6vCQOZjfMqeMBkQYj0eqXzSgdG0"
 BASE_URL = "https://api.link-ai.tech/v1"
 CHAT_URL = f"{BASE_URL}/chat/completions"
+
+# API密钥管理
+API_KEYS_FILE = "api_keys.txt"
+DEPRECATED_KEYS_FILE = "deprecated_apikeys.txt"
+current_api_key = None
 
 # 文件路径配置
 VTT_FOLDER = r'../output_result'
@@ -83,11 +88,95 @@ SYSTEM_PROMPT = """你是一位专业的内容编辑和翻译专家。请将用�
 
 直接输出整理后的文章内容，不要添加任何解释或标记。"""
 
+def load_api_keys():
+    """加载API密钥列表"""
+    try:
+        with open(API_KEYS_FILE, 'r', encoding='utf-8') as f:
+            keys = [line.strip() for line in f if line.strip()]
+        return keys
+    except FileNotFoundError:
+        print(f"❌ 错误：找不到API密钥文件 {API_KEYS_FILE}")
+        return []
+
+def save_api_keys(keys):
+    """保存API密钥列表"""
+    with open(API_KEYS_FILE, 'w', encoding='utf-8') as f:
+        for key in keys:
+            f.write(key + '\n')
+
+def move_key_to_deprecated(api_key):
+    """将无积分的API密钥移动到废弃文件"""
+    try:
+        # 读取现有的废弃密钥
+        deprecated_keys = []
+        if os.path.exists(DEPRECATED_KEYS_FILE):
+            with open(DEPRECATED_KEYS_FILE, 'r', encoding='utf-8') as f:
+                deprecated_keys = [line.strip() for line in f if line.strip()]
+        
+        # 添加新的废弃密钥
+        if api_key not in deprecated_keys:
+            deprecated_keys.append(api_key)
+            with open(DEPRECATED_KEYS_FILE, 'w', encoding='utf-8') as f:
+                for key in deprecated_keys:
+                    f.write(key + '\n')
+            print(f"🗑️  已将无积分的API密钥移动到 {DEPRECATED_KEYS_FILE}")
+    except Exception as e:
+        print(f"⚠️  移动废弃密钥时出错: {e}")
+
+def get_next_api_key():
+    """获取下一个可用的API密钥"""
+    global current_api_key
+    
+    api_keys = load_api_keys()
+    if not api_keys:
+        print("❌ 错误：没有可用的API密钥")
+        return None
+    
+    current_api_key = api_keys[0]
+    print(f"🔑 使用API密钥: {current_api_key[:20]}...")
+    return current_api_key
+
+def switch_to_next_api_key():
+    """切换到下一个API密钥"""
+    global current_api_key
+    
+    api_keys = load_api_keys()
+    if not api_keys:
+        print("❌ 错误：没有可用的API密钥")
+        return None
+    
+    if current_api_key and current_api_key in api_keys:
+        # 移动当前密钥到废弃文件
+        move_key_to_deprecated(current_api_key)
+        
+        # 从可用密钥列表中移除
+        api_keys.remove(current_api_key)
+        save_api_keys(api_keys)
+        
+        print(f"🔄 API密钥 {current_api_key[:20]}... 积分不足，切换到下一个")
+    
+    if api_keys:
+        current_api_key = api_keys[0]
+        print(f"🔑 切换到新的API密钥: {current_api_key[:20]}...")
+        return current_api_key
+    else:
+        print("❌ 错误：所有API密钥都已用完积分")
+        current_api_key = None
+        return None
+
 def call_linkai_api(messages, retry_count=0):
-    """调用LinkAI API，带重试机制"""
+    """调用LinkAI API，带重试机制和自动密钥切换"""
+    global current_api_key
+    
+    # 确保有可用的API密钥
+    if not current_api_key:
+        current_api_key = get_next_api_key()
+        if not current_api_key:
+            return None
+    
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {API_KEY}"
+        "Authorization": f"Bearer {current_api_key}"
     }
     
     body = {
@@ -118,6 +207,19 @@ def call_linkai_api(messages, retry_count=0):
                         retry_stats['other_errors'] += 1
                         return None
                     continue
+            elif response.status_code == 406:
+                print(f"    💳 API密钥积分不足 (406错误)")
+                # 切换到下一个API密钥
+                new_key = switch_to_next_api_key()
+                if new_key:
+                    # 更新请求头中的密钥
+                    headers["Authorization"] = f"Bearer {new_key}"
+                    print(f"    🔄 已切换API密钥，重新尝试...")
+                    continue
+                else:
+                    print(f"    ❌ 所有API密钥都已用完积分")
+                    retry_stats['other_errors'] += 1
+                    return None
             else:
                 print(f"    ❌ API调用失败: {response.status_code}")
                 print(f"    错误信息: {response.text}")
@@ -283,6 +385,13 @@ def main():
     
     args = parser.parse_args()
     process_count = args.count
+    
+    # 初始化API密钥
+    global current_api_key
+    current_api_key = get_next_api_key()
+    if not current_api_key:
+        print("❌ 错误：没有可用的API密钥，请检查 api_keys.txt 文件")
+        return
     
     start_time = datetime.now()
     print("=== VTT到Markdown批量处理器 ===")
