@@ -2,7 +2,7 @@
 
 ## 功能说明
 
-本目录包含两个核心工具：
+本目录包含四个核心工具：
 
 ### 1. 通用VTT转Markdown处理器 (`batch_vtt_to_md.py`)
 
@@ -38,7 +38,73 @@ python batch_vtt_to_md.py
   - 详细的错误统计和重试报告
   - 区分不同错误类型（超时、连接、其他）
 
-### 2. VTT文件日期重命名工具 (`add_date_to_filename.py`)
+### 2. 微信公众号文章批量爬取器 (`wechat_article_crawler.py`)
+
+从Excel文件中读取微信公众号文章链接，批量获取文章内容并保存为Markdown格式。
+
+**使用方法：**
+```bash
+# 处理所有文章
+python wechat_article_crawler.py filename.xlsx
+
+# 从第10行开始，处理20篇文章
+python wechat_article_crawler.py filename.xlsx --start 10 --count 20
+
+# 每次最多处理50篇（分批处理）
+python wechat_article_crawler.py filename.xlsx --max-batch 50
+
+# 自定义输出文件夹和延时
+python wechat_article_crawler.py filename.xlsx --output custom_folder --delay 3,8
+```
+
+**功能特点：**
+- 从Excel文件读取文章链接、标题、摘要、发布时间
+- 自动获取微信公众号文章完整内容
+- 生成有序的Markdown文件（序号+日期+标题）
+- **🔥 断点续传**：已处理的文章自动跳过，支持中断后继续
+- **⚡ 批量控制**：可控制起始位置、处理数量、最大批次
+- **🛡️ 智能重试**：网络异常时自动重试
+- **⏰ 频率控制**：可配置请求间隔，避免被限制
+- **📁 文件结构**：输入 `wechat/data_setup/filename.xlsx`，输出 `wechat_filename/001_2024-01-01_文章标题.md`
+
+**Excel文件格式要求：**
+必须包含以下列：`链接`、`标题`、`摘要`、`发布时间`
+
+### 3. 微信文章内容优化处理器 (`batch_md_processor.py`)
+
+对已爬取的微信公众号文章进行AI内容优化和格式整理。
+
+**使用方法：**
+```bash
+# 处理所有文章
+python batch_md_processor.py wechat_huibenmamahaitong
+
+# 处理第10-50篇文章
+python batch_md_processor.py wechat_huibenmamahaitong --start 10 --end 50
+
+# 处理前20篇文章
+python batch_md_processor.py wechat_huibenmamahaitong --count 20
+
+# 自定义输出目录和延时
+python batch_md_processor.py wechat_huibenmamahaitong --output custom_result --delay 5,15
+```
+
+**功能特点：**
+- 使用专业的育儿内容编辑提示词进行AI优化
+- **🔥 内容优化**：强化育儿干货知识，弱化个人隐私描述
+- **📝 格式整理**：智能分段，改善可读性，去除口语化冗余
+- **🛡️ 智能重试**：API异常时自动重试，支持密钥自动切换
+- **⚡ 批量控制**：可指定序号范围、处理数量
+- **🔄 断点续传**：已处理文件自动跳过，支持中断后继续
+- **📁 文件结构**：输入 `wechat_folder/001_date_title.md`，输出 `wechat_folder_result/001_date_title.md`
+
+**处理效果：**
+- 将口语化内容转换为流畅的书面语
+- 优化段落结构和逻辑组织
+- 保持原始信息完整性
+- 强化育儿知识点，弱化个人隐私
+
+### 4. VTT文件日期重命名工具 (`add_date_to_filename.py`)
 
 为VTT文件添加日期前缀，使文件能够按时间顺序排序。
 
@@ -112,12 +178,23 @@ python merge_md_files.py -e -l 800
 - Markdown输出目录：`D:\xwang\git_work_wx\whoRu\output_result_md_linkai`
 - 合并文件输出目录：`D:\xwang\git_work_wx\whoRu\output_result_md_merged`
 
+## 📁 文件说明
+
+- `batch_vtt_to_md.py`: VTT到Markdown的批量处理器
+- `wechat_article_crawler.py`: 微信公众号文章批量爬取器
+- `batch_md_processor.py`: 微信文章内容优化处理器（新增）
+- `merge_md_files.py`: Markdown文件合并工具
+- `api_keys.txt`: LinkAI API密钥列表
+- `requirements.txt`: 项目依赖包列表
+- `README.md`: 项目说明文档
+
 ## 注意事项
 
 - 需要有效的LinkAI API密钥
 - 处理大量文件时会产生API费用
 - 建议先小批量测试，确认效果后再全量处理
 - 脚本会自动跳过已处理的文件，支持断点续传
+- **新增**：微信文章处理器使用专业育儿编辑提示词，适合育儿类内容优化
 
 ## 重试机制说明
 
