@@ -9,8 +9,8 @@ import tempfile
 
 # --- 1. 配置区 ---
 
-VTT_FOLDER_PATH = r'D:\xwang\git_work_wx\whoRu\output_result'
-OUTPUT_FOLDER_PATH = r'D:\xwang\git_work_wx\whoRu\output_result_md'
+VTT_FOLDER_PATH = r'./output_result_hamr-lab'
+OUTPUT_FOLDER_PATH = r'./output_result_md_hamr-lab'
 API_URL = 'http://127.0.0.1:1234/v1/chat/completions'
 
 # 【优化点1】: 尝试一个更大的分片值，您可以根据测试结果调整这个数字
