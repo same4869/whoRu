@@ -19,9 +19,9 @@ from pathlib import Path
 import yaml
 
 # 配置
-MD_FOLDER = r'D:\xwang\git_work_wx\whoRu\linkai\wechat_xiaotudachengzi_result'
-MERGED_FOLDER = r'D:\xwang\git_work_wx\whoRu\linkai\wechat_xiaotudachengzi_result_merged'
-DEFAULT_MAX_LINES = 3000
+MD_FOLDER = r'../output_result_md_linkai'
+MERGED_FOLDER = r'../output_result_md_linkai_merged'
+DEFAULT_MAX_LINES = 1000
 
 def extract_date_from_filename(filename):
     """从文件名中提取日期"""
