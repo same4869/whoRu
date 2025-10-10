@@ -28,7 +28,7 @@ YouTube 频道字幕下载器 - 优化版
 # ==================== 配置区 (请在这里修改) ====================
 
 # 1. 填入你想要下载的 YouTube 频道的 "Videos" 页面 URL
-CHANNEL_URL = "https://www.youtube.com/@8advice/videos"
+CHANNEL_URL = "https://www.youtube.com/@TheMarketMemo/videos"
 
 # 2. 定义存放最终字幕文件的输出文件夹名
 OUTPUT_DIR = 'output_result'
