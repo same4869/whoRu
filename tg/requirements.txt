@@ -1,0 +1,11 @@
+# Telegram爬虫依赖包
+
+# 方案1: 使用Telegram API (推荐)
+telethon>=1.34.0
+cryptg  # 可选，用于加速
+
+# 方案2: 网页爬取 (备用)
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+

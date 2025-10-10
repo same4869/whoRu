@@ -1,0 +1,19 @@
+# Telegram session文件
+*.session
+*.session-journal
+
+# API配置（包含敏感信息）
+config.py
+
+# 输出文件
+output/
+*.json
+*.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
