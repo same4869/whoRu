@@ -105,7 +105,7 @@ def analyze_md_files():
     files_with_extractable_date = []  # 可以提取日期的文件
     files_no_date_info = []  # 无法获取日期的文件
     
-    print("\n📊 分析文件日期信息...")
+    print("\n分析文件日期信息...")
     
     for i, md_file in enumerate(md_files):
         filename = os.path.basename(md_file)
@@ -134,13 +134,13 @@ def analyze_md_files():
     
     # 输出分析结果
     print(f"\n=== 分析结果 ===")
-    print(f"✅ 已有日期前缀: {len(files_with_date)} 个文件")
-    print(f"📅 可提取日期: {len(files_with_extractable_date)} 个文件")
-    print(f"❓ 无日期信息: {len(files_no_date_info)} 个文件")
+    print(f"[OK] 已有日期前缀: {len(files_with_date)} 个文件")
+    print(f"[可提取] 可提取日期: {len(files_with_extractable_date)} 个文件")
+    print(f"[无日期] 无日期信息: {len(files_no_date_info)} 个文件")
     
     # 显示无日期信息的文件
     if files_no_date_info:
-        print(f"\n⚠️ 无法获取日期的文件:")
+        print(f"\n[警告] 无法获取日期的文件:")
         for md_file, filename, reason in files_no_date_info[:10]:  # 只显示前10个
             print(f"  - {filename[:60]}... ({reason})")
         if len(files_no_date_info) > 10:
@@ -148,7 +148,7 @@ def analyze_md_files():
     
     # 显示一些可提取日期的示例
     if files_with_extractable_date:
-        print(f"\n📋 可提取日期的文件示例:")
+        print(f"\n[示例] 可提取日期的文件示例:")
         for md_file, filename, parsed_date, original_date in files_with_extractable_date[:5]:
             print(f"  - {filename[:50]}...")
             print(f"    原始日期: {original_date} -> 解析后: {parsed_date}")
@@ -173,28 +173,28 @@ def rename_files_with_dates(files_with_dates, dry_run=True):
             new_path = os.path.join(os.path.dirname(md_file), new_filename)
             
             if dry_run:
-                print(f"  📝 {original_filename[:50]}...")
+                print(f"  [预览] {original_filename[:50]}...")
                 print(f"     -> {new_filename[:60]}...")
                 print(f"     (日期: {original_date} -> {date_str})")
             else:
                 # 检查新文件名是否已存在
                 if os.path.exists(new_path):
-                    print(f"  ⚠️ 跳过 {original_filename} (目标文件已存在)")
+                    print(f"  [跳过] {original_filename} (目标文件已存在)")
                     continue
                 
                 # 执行重命名
                 os.rename(old_path, new_path)
-                print(f"  ✅ {original_filename[:40]}... -> {new_filename[:50]}...")
+                print(f"  [成功] {original_filename[:40]}... -> {new_filename[:50]}...")
                 success_count += 1
                 
         except Exception as e:
-            print(f"  ❌ 重命名失败 {original_filename}: {e}")
+            print(f"  [失败] 重命名失败 {original_filename}: {e}")
             error_count += 1
     
     if not dry_run:
         print(f"\n=== 重命名完成 ===")
-        print(f"✅ 成功: {success_count} 个文件")
-        print(f"❌ 失败: {error_count} 个文件")
+        print(f"[成功] 成功: {success_count} 个文件")
+        print(f"[失败] 失败: {error_count} 个文件")
 
 def main():
     """主函数"""
@@ -213,17 +213,17 @@ def main():
     files_with_dates, files_no_date = analyze_md_files()
     
     if not files_with_dates:
-        print("\n✅ 所有文件都已包含日期前缀或无法提取日期。")
+        print("\n[完成] 所有文件都已包含日期前缀或无法提取日期。")
         return
     
     # 预览或执行重命名
     if args.execute:
-        print(f"\n⚠️ 即将重命名 {len(files_with_dates)} 个文件")
+        print(f"\n[警告] 即将重命名 {len(files_with_dates)} 个文件")
         rename_files_with_dates(files_with_dates, dry_run=False)
     else:
-        print(f"\n📋 预览重命名 {len(files_with_dates)} 个文件")
+        print(f"\n[预览] 预览重命名 {len(files_with_dates)} 个文件")
         rename_files_with_dates(files_with_dates, dry_run=True)
-        print(f"\n💡 如需执行重命名，请运行: python add_date_to_md_filename.py -e")
+        print(f"\n[提示] 如需执行重命名，请运行: python add_date_to_md_filename.py -e")
 
 if __name__ == "__main__":
     main()
