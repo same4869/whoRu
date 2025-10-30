@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# 音频文件目录（体积较大，不提交）
+audios/
+audios_txt/
+
+# 临时文件
+audio_py/temp_audios/
+
+# 输出文件（可选择性提交）
+# output_result/
+# output_result_md_linkai/
+# output_result_md_linkai_merged/
+# audio_py/audio_md/
+
+# API密钥
+linkai/api_keys.txt
+linkai/deprecated_apikeys.txt
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 日志文件
+*.log
+
+# Cookies
+*.txt
+!requirements.txt
+!README*.txt
+!api_keys.txt.example
+

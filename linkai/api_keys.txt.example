@@ -1,0 +1,8 @@
+# LinkAI API密钥文件
+# 每行一个密钥，脚本会自动轮换使用
+# 积分不足的密钥会被自动移到 deprecated_apikeys.txt
+
+your-api-key-here-1
+your-api-key-here-2
+your-api-key-here-3
+
