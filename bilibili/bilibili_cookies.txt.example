@@ -1,0 +1,25 @@
+# Netscape HTTP Cookie File
+# This is a generated file! Do not edit.
+
+# 如何获取B站Cookie：
+# 1. 打开Chrome/Edge浏览器，登录B站 (https://www.bilibili.com)
+# 2. 按F12打开开发者工具
+# 3. 切换到"应用程序"(Application)或"存储"(Storage)标签
+# 4. 在左侧找到"Cookie" -> "https://www.bilibili.com"
+# 5. 找到以下重要的Cookie值并替换下面的示例：
+#    - SESSDATA
+#    - bili_jct
+#    - DedeUserID
+#    - DedeUserID__ckMd5
+# 
+# 或者使用浏览器插件导出Cookie（推荐）：
+# - Chrome: "Get cookies.txt LOCALLY" 或 "cookies.txt"
+# - Firefox: "cookies.txt"
+#
+# 导出后重命名为 bilibili_cookies.txt 放在本目录下
+
+.bilibili.com	TRUE	/	FALSE	1234567890	SESSDATA	your_sessdata_here
+.bilibili.com	TRUE	/	FALSE	1234567890	bili_jct	your_bili_jct_here
+.bilibili.com	TRUE	/	FALSE	1234567890	DedeUserID	your_userid_here
+.bilibili.com	TRUE	/	FALSE	1234567890	DedeUserID__ckMd5	your_md5_here
+

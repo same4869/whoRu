@@ -1,0 +1,55 @@
+# Cookie文件（包含敏感信息，不要提交）
+bilibili_cookies.txt
+*.txt
+!requirements.txt
+!*.txt.example
+!README*.txt
+
+# 下载目录
+downloads/
+b_download/
+output/
+
+# 测试目录
+test_*/
+text_output*/
+
+# 日志目录
+logs/
+*.log
+
+# Python缓存
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时文件
+*.tmp
+*.temp
+
+# 媒体文件（可选）
+*.mp4
+*.m4a
+*.webm
+*.srt
+*.xml
+
