@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-VTT到Markdown的通用批量处理器
-支持处理各种主题的视频字幕文件，自动转换为高质量的简体中文文章
+字幕到Markdown的通用批量处理器
+支持处理VTT和SRT格式的视频字幕文件，自动转换为高质量的简体中文文章
 
 功能特点：
+- 多格式支持：同时支持VTT和SRT字幕格式
 - 通用主题识别：支持科技、教育、生活、商业、投资理财、职场、文化、健康医疗、新闻时事等9大分类
 - 智能内容分析：根据内容特征自动分类（教程指南、经验分享、评测推荐等）
 - 智能API密钥管理：自动从api_keys.txt读取密钥，积分不足时自动切换
@@ -39,6 +40,62 @@ import argparse
 sys.path.append(str(Path(__file__).parent.parent))
 from call_ai_translate_vtt_to_md import parse_vtt_file
 
+def parse_srt_file(srt_file_path):
+    """
+    解析SRT字幕文件
+    返回: (文本内容, 时间戳信息字典)
+    """
+    try:
+        with open(srt_file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+    except UnicodeDecodeError:
+        try:
+            with open(srt_file_path, 'r', encoding='gbk') as f:
+                content = f.read()
+        except:
+            print(f"  ❌ 无法读取SRT文件（编码问题）")
+            return None, None
+    
+    # 提取文件名作为标题
+    filename = os.path.basename(srt_file_path)
+    title = os.path.splitext(filename)[0]
+    
+    # 解析SRT内容
+    texts = []
+    blocks = content.strip().split('\n\n')
+    
+    for block in blocks:
+        lines = block.strip().split('\n')
+        if len(lines) < 3:
+            continue
+        
+        # SRT格式：
+        # 1. 序号
+        # 2. 时间戳
+        # 3. 字幕文本（可能多行）
+        
+        # 跳过序号和时间戳，提取文本
+        text_lines = []
+        for line in lines[2:]:  # 跳过序号和时间戳
+            line = line.strip()
+            if line:
+                text_lines.append(line)
+        
+        if text_lines:
+            texts.append(' '.join(text_lines))
+    
+    # 合并所有文本
+    full_text = '\n'.join(texts)
+    
+    # 构造时间戳信息
+    timestamp_info = {
+        'title': title,
+        'publish_date': '未知日期',  # SRT文件通常不包含发布日期
+        'source': 'SRT字幕文件'
+    }
+    
+    return full_text, timestamp_info
+
 # LinkAI API 配置
 BASE_URL = "https://api.link-ai.tech/v1"
 CHAT_URL = f"{BASE_URL}/chat/completions"
@@ -49,7 +106,7 @@ DEPRECATED_KEYS_FILE = "deprecated_apikeys.txt"
 current_api_key = None
 
 # 文件路径配置
-VTT_FOLDER = r'../output_result'
+VTT_FOLDER = r'../bilibili/b_download'
 MD_FOLDER = r'../output_result_md_linkai'
 
 # 处理配置
@@ -310,16 +367,26 @@ def extract_key_topics(title, content):
     
     return topics[:3]  # 最多返回3个主题标签
 
-def process_single_vtt_file(vtt_file_path):
-    """处理单个VTT文件"""
+def process_single_subtitle_file(subtitle_file_path):
+    """处理单个字幕文件（支持VTT和SRT）"""
     try:
-        filename = os.path.basename(vtt_file_path)
+        filename = os.path.basename(subtitle_file_path)
+        file_ext = os.path.splitext(filename)[1].lower()
         print(f"📝 处理: {filename}")
         
-        # 解析VTT文件
-        result = parse_vtt_file(vtt_file_path)
+        # 根据文件扩展名选择解析器
+        if file_ext == '.vtt':
+            result = parse_vtt_file(subtitle_file_path)
+            file_type = "VTT"
+        elif file_ext == '.srt':
+            result = parse_srt_file(subtitle_file_path)
+            file_type = "SRT"
+        else:
+            print(f"  ❌ 不支持的文件格式: {file_ext}")
+            return False
+        
         if not result or not result[0]:
-            print(f"  ❌ VTT解析失败")
+            print(f"  ❌ {file_type}解析失败")
             return False
         
         text, timestamp_info = result
@@ -379,7 +446,7 @@ processed_at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description='VTT到Markdown批量处理器')
+    parser = argparse.ArgumentParser(description='字幕到Markdown批量处理器（支持VTT和SRT）')
     parser.add_argument('count', type=int, nargs='?', default=0, 
                        help='处理文件数量：0表示全部，其他数字表示前N个文件')
     
@@ -394,7 +461,7 @@ def main():
         return
     
     start_time = datetime.now()
-    print("=== VTT到Markdown批量处理器 ===")
+    print("=== 字幕到Markdown批量处理器（支持VTT和SRT）===")
     print(f"开始时间: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"输入目录: {VTT_FOLDER}")
     print(f"输出目录: {MD_FOLDER}")
@@ -402,9 +469,11 @@ def main():
     # 确保输出目录存在
     os.makedirs(MD_FOLDER, exist_ok=True)
     
-    # 获取所有VTT文件
+    # 获取所有VTT和SRT文件
     vtt_files = glob.glob(os.path.join(VTT_FOLDER, "*.vtt"))
-    print(f"找到 {len(vtt_files)} 个VTT文件")
+    srt_files = glob.glob(os.path.join(VTT_FOLDER, "*.srt"))
+    subtitle_files = vtt_files + srt_files
+    print(f"找到 {len(vtt_files)} 个VTT文件, {len(srt_files)} 个SRT文件, 共 {len(subtitle_files)} 个字幕文件")
     
     # 检查已处理的文件
     existing_md_files = set()
@@ -413,10 +482,10 @@ def main():
     
     # 过滤出未处理的文件
     unprocessed_files = []
-    for vtt_file in vtt_files:
-        base_name = os.path.splitext(os.path.basename(vtt_file))[0]
+    for subtitle_file in subtitle_files:
+        base_name = os.path.splitext(os.path.basename(subtitle_file))[0]
         if base_name not in existing_md_files:
-            unprocessed_files.append(vtt_file)
+            unprocessed_files.append(subtitle_file)
     
     print(f"需要处理 {len(unprocessed_files)} 个新文件")
     
@@ -450,8 +519,8 @@ def main():
         
         print(f"\n🔄 批次 {batch_num}/{total_batches} (文件 {i+1}-{min(i+BATCH_SIZE, total_files)})")
         
-        for j, vtt_file in enumerate(batch_files):
-            if process_single_vtt_file(vtt_file):
+        for j, subtitle_file in enumerate(batch_files):
+            if process_single_subtitle_file(subtitle_file):
                 success_count += 1
             
             # 请求间隔
